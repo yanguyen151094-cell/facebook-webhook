@@ -1,0 +1,132 @@
+import type {
+  ActivityLog,
+  Assignment,
+  Channel,
+  ChannelPlatform,
+  ChannelStatus,
+  Conversation,
+  ConversationStatus,
+  Customer,
+  Message,
+  MessageStatus,
+  PresenceStatus,
+  Role,
+  User,
+} from "@/types";
+
+export function mapChannel(row: Record<string, unknown>): Channel {
+  const status = (row.status as ChannelStatus) ?? "disconnected";
+  return {
+    id: row.id as string,
+    name: (row.name as string) ?? "",
+    platform: (row.platform as ChannelPlatform) ?? "facebook",
+    avatar: (row.avatar as string) ?? "",
+    status,
+    lastSync: (row.last_sync as string) ?? "",
+    unread: 0,
+    tokenStatus: status === "connected" ? "active" : status === "pending" ? "pending" : "expired",
+    externalId: (row.external_id as string) ?? undefined,
+    ownerId: (row.owner_id as string) ?? undefined,
+  };
+}
+
+export function mapCustomer(row: Record<string, unknown>, tags: string[] = []): Customer {
+  return {
+    id: row.id as string,
+    name: (row.name as string) ?? "",
+    avatar: (row.avatar as string) ?? "",
+    platform: (row.platform as ChannelPlatform) ?? "facebook",
+    externalId: (row.external_id as string) ?? "",
+    username: (row.username as string) ?? "",
+    phone: (row.phone as string) ?? undefined,
+    tags,
+    firstContactAt: (row.first_contact_at as string) ?? (row.created_at as string),
+    lastInteractionAt: (row.last_interaction_at as string) ?? (row.created_at as string),
+  };
+}
+
+export function mapMessage(row: Record<string, unknown>): Message {
+  return {
+    id: row.id as string,
+    conversationId: row.conversation_id as string,
+    sender: row.sender as Message["sender"],
+    senderName: (row.sender_name as string) ?? undefined,
+    staffId: (row.staff_id as string) ?? undefined,
+    content: (row.content as string) ?? "",
+    sentAt: row.sent_at as string,
+    status: (row.status as MessageStatus) ?? "sent",
+    type: (row.type as Message["type"]) ?? "text",
+    attachmentUrl: (row.attachment_url as string) ?? undefined,
+  };
+}
+
+export function mapAssignment(row: Record<string, unknown>): Assignment {
+  return {
+    staffId: row.staff_id as string,
+    staffName: (row.staff_name as string) ?? "",
+    assignedAt: row.assigned_at as string,
+  };
+}
+
+export function computeWaitMinutes(status: ConversationStatus, lastMessageAt: string): number {
+  if (status !== "unanswered" && status !== "unread") return 0;
+  if (!lastMessageAt) return 0;
+  const diff = Date.now() - new Date(lastMessageAt).getTime();
+  return Math.max(0, Math.floor(diff / 60000));
+}
+
+export function mapConversation(
+  row: Record<string, unknown>,
+  assignments: Assignment[] = []
+): Conversation {
+  const status = (row.status as ConversationStatus) ?? "unread";
+  const lastMessageAt = (row.last_message_at as string) ?? (row.updated_at as string) ?? "";
+  return {
+    id: row.id as string,
+    channelId: row.channel_id as string,
+    customerId: row.customer_id as string,
+    status,
+    assignedStaffId: (row.assigned_staff_id as string) ?? undefined,
+    lastMessage: (row.last_message as string) ?? "",
+    lastMessageAt,
+    waitMinutes: computeWaitMinutes(status, lastMessageAt),
+    assignments,
+    unreadCount: status === "unread" ? 1 : 0,
+    customerTyping: false,
+  };
+}
+
+export function mapUser(
+  row: Record<string, unknown>,
+  assignedChannelIds: string[] = [],
+  stats?: { customersHandled: number; messagesReplied: number; avgResponseMinutes: number }
+): User {
+  return {
+    id: row.id as string,
+    name: (row.name as string) ?? "",
+    username: (row.username as string) ?? "",
+    role: (row.role as Role) ?? "staff",
+    active: (row.active as boolean) ?? true,
+    presence: (row.presence as PresenceStatus) ?? "offline",
+    lastActive: (row.last_active as string) ?? "",
+    avatar: (row.avatar as string) ?? "",
+    assignedChannelIds,
+    customersHandled: stats?.customersHandled ?? 0,
+    messagesReplied: stats?.messagesReplied ?? 0,
+    avgResponseMinutes: stats?.avgResponseMinutes ?? 0,
+  };
+}
+
+export function mapActivityLog(row: Record<string, unknown>): ActivityLog {
+  return {
+    id: row.id as string,
+    actorName: (row.actor_name as string) ?? "Hệ thống",
+    actorRole: ((row.actor_role as Role) ?? "staff") as Role,
+    action: (row.action as string) ?? "",
+    detail: (row.detail as string) ?? "",
+    at: (row.created_at as string) ?? "",
+    ip: (row.ip as string) ?? "",
+    device: (row.device as string) ?? "",
+    category: (row.category as ActivityLog["category"]) ?? "system",
+  };
+}
