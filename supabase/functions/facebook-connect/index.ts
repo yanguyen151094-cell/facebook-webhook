@@ -1,366 +1,183 @@
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 
-const GRAPH = "https://graph.facebook.com/v22.0";
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
 
-Deno.serve(async (req) => {
+serve(async (req) => {
+  // CORS
+  if (req.method === "OPTIONS") {
+    return new Response("ok", {
+      headers: corsHeaders,
+    });
+  }
+
   try {
     const url = new URL(req.url);
 
     // =========================
-    // ENVIRONMENT VARIABLES
+    // FACEBOOK CONFIG
     // =========================
-    const appId = Deno.env.get("FACEBOOK_APP_ID");
-    const appSecret = Deno.env.get("FACEBOOK_APP_SECRET");
 
-    const redirectUri =
-      Deno.env.get("FACEBOOK_REDIRECT_URI") ||
-      `${url.origin}${url.pathname}`;
+    const FACEBOOK_APP_ID = Deno.env.get("FACEBOOK_APP_ID");
+    const FACEBOOK_APP_SECRET = Deno.env.get("FACEBOOK_APP_SECRET");
 
-    const appUrl =
-      Deno.env.get("APP_URL") ||
-      "https://facebook-webhook-lemon.vercel.app";
+    const REDIRECT_URI =
+      "https://defffgyrdexydrfnura.supabase.co/functions/v1/facebook-connect";
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-    if (!appId || !appSecret) {
-      return new Response(
-        "THIẾU FACEBOOK_APP_ID HOẶC FACEBOOK_APP_SECRET.",
-        {
-          status: 500,
-          headers: {
-            "Content-Type": "text/plain; charset=utf-8",
-          },
-        }
-      );
-    }
-
-    if (!supabaseUrl || !serviceKey) {
-      return new Response(
-        "THIẾU SUPABASE_URL HOẶC SUPABASE_SERVICE_ROLE_KEY.",
-        {
-          status: 500,
-          headers: {
-            "Content-Type": "text/plain; charset=utf-8",
-          },
-        }
+    if (!FACEBOOK_APP_ID || !FACEBOOK_APP_SECRET) {
+      throw new Error(
+        "Thiếu FACEBOOK_APP_ID hoặc FACEBOOK_APP_SECRET trong Supabase Secrets."
       );
     }
 
     // =========================
-    // QUERY PARAMETERS
+    // 1. FACEBOOK CALLBACK
     // =========================
+
     const code = url.searchParams.get("code");
+    const error = url.searchParams.get("error");
+    const errorDescription = url.searchParams.get("error_description");
 
-    const redirect =
-      url.searchParams.get("redirect") ||
-      `${appUrl}/channels`;
-
-    const ownerId =
-      url.searchParams.get("state") ||
-      url.searchParams.get("owner") ||
-      "";
+    if (error) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error,
+          error_description: errorDescription,
+        }),
+        {
+          status: 400,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+    }
 
     // =========================
-    // BƯỚC 1:
-    // CHƯA CÓ CODE -> ĐƯA SANG FACEBOOK
+    // 2. CHƯA CÓ CODE
+    // => CHUYỂN SANG FACEBOOK
     // =========================
+
     if (!code) {
-      const scope = [
-        "pages_show_list",
-        "pages_read_engagement",
-        "pages_manage_metadata",
-        "pages_messaging",
-      ].join(",");
+      const facebookOAuthUrl = new URL(
+        "https://www.facebook.com/v22.0/dialog/oauth"
+      );
 
-      const stateData = JSON.stringify({
-        ownerId,
-        redirect,
-      });
+      facebookOAuthUrl.searchParams.set("client_id", FACEBOOK_APP_ID);
+      facebookOAuthUrl.searchParams.set("redirect_uri", REDIRECT_URI);
+      facebookOAuthUrl.searchParams.set("response_type", "code");
 
-      const state = btoa(stateData);
+      // CHỈ DÙNG QUYỀN CƠ BẢN TRƯỚC
+      // để kiểm tra OAuth hoạt động.
+      facebookOAuthUrl.searchParams.set(
+        "scope",
+        "public_profile,email"
+      );
 
-      const facebookUrl =
-        `${GRAPH}/oauth/authorize` +
-        `?client_id=${encodeURIComponent(appId)}` +
-        `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-        `&scope=${encodeURIComponent(scope)}` +
-        `&response_type=code` +
-        `&state=${encodeURIComponent(state)}`;
-
-      return Response.redirect(facebookUrl, 302);
+      return Response.redirect(facebookOAuthUrl.toString(), 302);
     }
 
     // =========================
-    // BƯỚC 2:
-    // FACEBOOK TRẢ CODE VỀ
+    // 3. ĐỔI CODE LẤY USER ACCESS TOKEN
     // =========================
-    const stateRaw = url.searchParams.get("state");
 
-    let stateOwnerId = "";
-    let stateRedirect = `${appUrl}/channels`;
+    const tokenUrl = new URL(
+      "https://graph.facebook.com/v22.0/oauth/access_token"
+    );
 
-    if (stateRaw) {
-      try {
-        const decoded = JSON.parse(atob(stateRaw));
+    tokenUrl.searchParams.set("client_id", FACEBOOK_APP_ID);
+    tokenUrl.searchParams.set("client_secret", FACEBOOK_APP_SECRET);
+    tokenUrl.searchParams.set("redirect_uri", REDIRECT_URI);
+    tokenUrl.searchParams.set("code", code);
 
-        stateOwnerId = decoded.ownerId || "";
-        stateRedirect = decoded.redirect || stateRedirect;
-      } catch {
-        // Nếu state cũ không phải JSON
-        stateOwnerId = stateRaw;
-      }
-    }
+    const tokenResponse = await fetch(tokenUrl.toString());
+    const tokenData = await tokenResponse.json();
 
-    // =========================
-    // BƯỚC 3:
-    // ĐỔI CODE -> USER ACCESS TOKEN
-    // =========================
-    const tokenUrl =
-      `${GRAPH}/oauth/access_token` +
-      `?client_id=${encodeURIComponent(appId)}` +
-      `&client_secret=${encodeURIComponent(appSecret)}` +
-      `&redirect_uri=${encodeURIComponent(redirectUri)}` +
-      `&code=${encodeURIComponent(code)}`;
-
-    const tokenRes = await fetch(tokenUrl);
-    const tokenData = await tokenRes.json();
-
-    if (!tokenRes.ok || !tokenData.access_token) {
+    if (!tokenResponse.ok || tokenData.error) {
       return new Response(
-        `FACEBOOK TOKEN ERROR:\n${JSON.stringify(tokenData, null, 2)}`,
+        JSON.stringify({
+          success: false,
+          step: "get_access_token",
+          data: tokenData,
+        }),
         {
           status: 400,
           headers: {
-            "Content-Type": "text/plain; charset=utf-8",
+            ...corsHeaders,
+            "Content-Type": "application/json",
           },
         }
       );
     }
 
-    const userToken = tokenData.access_token;
+    const accessToken = tokenData.access_token;
 
     // =========================
-    // BƯỚC 4:
-    // ĐỔI SANG LONG-LIVED TOKEN
+    // 4. LẤY THÔNG TIN USER
     // =========================
-    const longTokenUrl =
-      `${GRAPH}/oauth/access_token` +
-      `?grant_type=fb_exchange_token` +
-      `&client_id=${encodeURIComponent(appId)}` +
-      `&client_secret=${encodeURIComponent(appSecret)}` +
-      `&fb_exchange_token=${encodeURIComponent(userToken)}`;
 
-    const longTokenRes = await fetch(longTokenUrl);
-    const longTokenData = await longTokenRes.json();
+    const meUrl = new URL(
+      "https://graph.facebook.com/v22.0/me"
+    );
 
-    const longToken =
-      longTokenData.access_token || userToken;
+    meUrl.searchParams.set("fields", "id,name,email");
+    meUrl.searchParams.set("access_token", accessToken);
 
-    // =========================
-    // BƯỚC 5:
-    // LẤY DANH SÁCH FACEBOOK PAGE
-    // =========================
-    const pagesUrl =
-      `${GRAPH}/me/accounts` +
-      `?fields=id,name,access_token` +
-      `&access_token=${encodeURIComponent(longToken)}`;
+    const meResponse = await fetch(meUrl.toString());
+    const meData = await meResponse.json();
 
-    const pagesRes = await fetch(pagesUrl);
-    const pagesData = await pagesRes.json();
-
-    if (!pagesRes.ok) {
+    if (!meResponse.ok || meData.error) {
       return new Response(
-        `FACEBOOK PAGES ERROR:\n${JSON.stringify(
-          pagesData,
-          null,
-          2
-        )}`,
+        JSON.stringify({
+          success: false,
+          step: "get_user",
+          data: meData,
+        }),
         {
           status: 400,
           headers: {
-            "Content-Type": "text/plain; charset=utf-8",
+            ...corsHeaders,
+            "Content-Type": "application/json",
           },
         }
       );
     }
 
-    const pages = pagesData.data || [];
-
     // =========================
-    // SUPABASE ADMIN CLIENT
+    // 5. TRẢ KẾT QUẢ
     // =========================
-    const admin = createClient(
-      supabaseUrl,
-      serviceKey
-    );
-
-    // =========================
-    // BƯỚC 6:
-    // LƯU TỪNG PAGE VÀO DATABASE
-    // =========================
-    for (const page of pages) {
-      const pageId = page.id;
-      const pageName = page.name || "Facebook Page";
-      const pageToken = page.access_token;
-
-      if (!pageId || !pageToken) {
-        continue;
-      }
-
-      // -------------------------
-      // TÌM CHANNEL ĐÃ CÓ
-      // -------------------------
-      const { data: existing, error: findError } =
-        await admin
-          .from("channels")
-          .select("id")
-          .eq("platform", "facebook")
-          .eq("external_id", pageId)
-          .maybeSingle();
-
-      if (findError) {
-        console.error("CHANNEL FIND ERROR:", findError);
-        continue;
-      }
-
-      let channelId: string;
-
-      // -------------------------
-      // CHANNEL ĐÃ TỒN TẠI
-      // -------------------------
-      if (existing) {
-        channelId = existing.id;
-
-        const updateData: Record<string, unknown> = {
-          name: pageName,
-          status: "connected",
-          last_sync: new Date().toISOString(),
-        };
-
-        if (stateOwnerId) {
-          updateData.owner_id = stateOwnerId;
-        }
-
-        const { error: updateError } =
-          await admin
-            .from("channels")
-            .update(updateData)
-            .eq("id", channelId);
-
-        if (updateError) {
-          console.error(
-            "CHANNEL UPDATE ERROR:",
-            updateError
-          );
-        }
-      }
-
-      // -------------------------
-      // CHANNEL CHƯA TỒN TẠI
-      // -------------------------
-      else {
-        const insertData: Record<string, unknown> = {
-          name: pageName,
-          platform: "facebook",
-          external_id: pageId,
-          status: "connected",
-          last_sync: new Date().toISOString(),
-        };
-
-        if (stateOwnerId) {
-          insertData.owner_id = stateOwnerId;
-        }
-
-        const { data: created, error: createError } =
-          await admin
-            .from("channels")
-            .insert(insertData)
-            .select("id")
-            .single();
-
-        if (createError || !created) {
-          console.error(
-            "CHANNEL CREATE ERROR:",
-            createError
-          );
-          continue;
-        }
-
-        channelId = created.id;
-      }
-
-      // =========================
-      // LƯU PAGE ACCESS TOKEN
-      // =========================
-      const { error: credentialError } =
-        await admin
-          .from("channel_credentials")
-          .upsert(
-            {
-              channel_id: channelId,
-              platform: "facebook",
-              token: pageToken,
-              updated_at: new Date().toISOString(),
-            },
-            {
-              onConflict: "channel_id",
-            }
-          );
-
-      if (credentialError) {
-        console.error(
-          "CREDENTIAL ERROR:",
-          credentialError
-        );
-      }
-
-      // =========================
-      // SUBSCRIBE PAGE
-      // NHẬN SỰ KIỆN MESSENGER
-      // =========================
-      const subscribeUrl =
-        `${GRAPH}/${pageId}/subscribed_apps` +
-        `?subscribed_fields=messages,messaging_postbacks,messaging_optins` +
-        `&access_token=${encodeURIComponent(pageToken)}`;
-
-      const subscribeRes = await fetch(
-        subscribeUrl,
-        {
-          method: "POST",
-        }
-      );
-
-      const subscribeData =
-        await subscribeRes.json();
-
-      console.log(
-        "PAGE SUBSCRIBE:",
-        pageId,
-        subscribeData
-      );
-    }
-
-    // =========================
-    // BƯỚC 7:
-    // QUAY VỀ WEBSITE
-    // =========================
-    return Response.redirect(
-      stateRedirect,
-      302
-    );
-
-  } catch (error) {
-    console.error("FACEBOOK CONNECT ERROR:", error);
 
     return new Response(
-      error instanceof Error
-        ? error.message
-        : "Lỗi máy chủ.",
+      JSON.stringify({
+        success: true,
+        message: "Facebook OAuth thành công.",
+        user: meData,
+        access_token: accessToken,
+      }),
+      {
+        status: 200,
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+  } catch (err) {
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: err instanceof Error ? err.message : String(err),
+      }),
       {
         status: 500,
         headers: {
-          "Content-Type": "text/plain; charset=utf-8",
+          ...corsHeaders,
+          "Content-Type": "application/json",
         },
       }
     );
