@@ -14,6 +14,9 @@ const TITLES: Record<string, string> = {
   "/reports": "Báo cáo",
   "/logs": "Nhật ký hoạt động",
   "/settings": "Cài đặt",
+  "/customer-notes": "Ghi chú khách hàng",
+  "/accounts": "Kho tài khoản",
+  "/evaluations": "Đánh giá",
 };
 
 export default function AppLayout() {

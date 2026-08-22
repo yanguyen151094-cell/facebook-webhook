@@ -3,9 +3,10 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import Avatar from "@/components/base/Avatar";
 import { supabase } from "@/lib/supabase";
-import { updatePresence } from "@/lib/actions";
-import { presenceMeta } from "@/utils/ui";
-import type { PresenceStatus } from "@/types";
+import { updatePresence, markNotificationRead, markAllNotificationsRead } from "@/lib/actions";
+import { mapNotification } from "@/lib/mappers";
+import { presenceMeta, formatRelative } from "@/utils/ui";
+import type { AppNotification, PresenceStatus } from "@/types";
 
 interface TopbarProps {
   title: string;
@@ -19,28 +20,34 @@ export default function Topbar({ title, onMenuClick }: TopbarProps) {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [presenceOpen, setPresenceOpen] = useState(false);
-  const [unreadTotal, setUnreadTotal] = useState(0);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
   const isAdmin = currentUser?.role === "admin";
   const [presence, setPresence] = useState<PresenceStatus>("online");
+
+  const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   useEffect(() => {
     let active = true;
     const load = async () => {
       const { data, error } = await supabase
-        .from("conversations")
-        .select("status");
+        .from("notifications")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(30);
       if (!error && active) {
-        const count = (data ?? []).filter(
-          (c: { status: string }) => c.status === "unread" || c.status === "unanswered"
-        ).length;
-        setUnreadTotal(count);
+        setNotifications((data ?? []).map(mapNotification));
       }
     };
     load();
     const channel = supabase
-      .channel("topbar-unread")
-      .on("postgres_changes", { event: "*", schema: "public", table: "conversations" }, load)
+      .channel("topbar-notifications")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "notifications" },
+        load
+      )
       .subscribe();
     return () => {
       active = false;
@@ -81,18 +88,79 @@ export default function Topbar({ title, onMenuClick }: TopbarProps) {
       </div>
 
       <div className="flex items-center gap-2 md:gap-3">
-        <button
-          type="button"
-          className="relative w-9 h-9 rounded-lg flex items-center justify-center text-foreground-600 hover:bg-background-100 cursor-pointer"
-          aria-label="Thông báo"
-        >
-          <i className="ri-notification-3-line text-xl" />
-          {unreadTotal > 0 && (
-            <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold flex items-center justify-center">
-              {unreadTotal}
-            </span>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setNotifOpen((v) => !v)}
+            className="relative w-9 h-9 rounded-lg flex items-center justify-center text-foreground-600 hover:bg-background-100 cursor-pointer"
+            aria-label="Thông báo"
+          >
+            <i className="ri-notification-3-line text-xl" />
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold flex items-center justify-center">
+                {unreadCount}
+              </span>
+            )}
+          </button>
+          {notifOpen && (
+            <div className="absolute right-0 top-full mt-1 w-80 bg-background-50 rounded-lg border border-background-200 shadow-sm z-30 animate-fade-in overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-background-100">
+                <p className="text-sm font-semibold text-foreground-900">Thông báo</p>
+                {unreadCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      markAllNotificationsRead().then(() => {
+                        setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+                      });
+                    }}
+                    className="text-xs text-primary-700 hover:underline cursor-pointer whitespace-nowrap"
+                  >
+                    Đánh dấu đã đọc
+                  </button>
+                )}
+              </div>
+              <div className="max-h-80 overflow-y-auto cs-scroll">
+                {notifications.length === 0 ? (
+                  <p className="text-sm text-foreground-400 py-10 text-center">
+                    Chưa có thông báo.
+                  </p>
+                ) : (
+                  notifications.map((n) => (
+                    <button
+                      key={n.id}
+                      type="button"
+                      onClick={() => {
+                        markNotificationRead(n.id).then(() => {
+                          setNotifications((prev) =>
+                            prev.map((x) => (x.id === n.id ? { ...x, isRead: true } : x))
+                          );
+                        });
+                      }}
+                      className={`w-full text-left px-4 py-3 flex items-start gap-3 border-b border-background-100 cursor-pointer ${
+                        n.isRead ? "bg-background-50" : "bg-accent-100/50"
+                      }`}
+                    >
+                      <div className="w-8 h-8 rounded-full bg-accent-100 text-accent-700 flex items-center justify-center shrink-0 mt-0.5">
+                        <i className="ri-star-fill" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-foreground-900">{n.title}</p>
+                        <p className="text-xs text-foreground-500 mt-0.5">{n.content}</p>
+                        <p className="text-[11px] text-foreground-400 mt-1">
+                          {formatRelative(n.createdAt)}
+                        </p>
+                      </div>
+                      {!n.isRead && (
+                        <span className="w-2 h-2 rounded-full bg-accent-500 shrink-0 mt-1.5" />
+                      )}
+                    </button>
+                  ))
+                )}
+              </div>
+            </div>
           )}
-        </button>
+        </div>
 
         {!isAdmin && (
           <div className="relative">

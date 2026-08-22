@@ -1,5 +1,7 @@
 import type {
+  AccountVault,
   ActivityLog,
+  AppNotification,
   Assignment,
   Channel,
   ChannelPlatform,
@@ -7,11 +9,15 @@ import type {
   Conversation,
   ConversationStatus,
   Customer,
+  CustomerAccount,
+  CustomerNote,
   Message,
   MessageStatus,
   PresenceStatus,
   Role,
+  StaffEvaluation,
   User,
+  VaultPlatform,
 } from "@/types";
 
 export function mapChannel(row: Record<string, unknown>): Channel {
@@ -128,5 +134,75 @@ export function mapActivityLog(row: Record<string, unknown>): ActivityLog {
     ip: (row.ip as string) ?? "",
     device: (row.device as string) ?? "",
     category: (row.category as ActivityLog["category"]) ?? "system",
+  };
+}
+
+export function mapCustomerNote(row: Record<string, unknown>): CustomerNote {
+  return {
+    id: row.id as string,
+    customerId: row.customer_id as string,
+    isRegistered: (row.is_registered as boolean) ?? false,
+    accountName: (row.account_name as string) ?? "",
+    contactInfo: (row.contact_info as string) ?? "",
+    totalDeposit: Number(row.total_deposit ?? 0),
+    totalBet: Number(row.total_bet ?? 0),
+    note: (row.note as string) ?? "",
+    updatedAt: (row.updated_at as string) ?? "",
+    updatedByName: (row.updated_by_name as string) ?? undefined,
+  };
+}
+
+export function mapCustomerAccount(row: Record<string, unknown>): CustomerAccount {
+  return {
+    id: row.id as string,
+    customerName: (row.customer_name as string) ?? "",
+    registrationDate: (row.registration_date as string) ?? undefined,
+    lastDepositDate: (row.last_deposit_date as string) ?? undefined,
+    totalDeposit: Number(row.total_deposit ?? 0),
+    totalBet: Number(row.total_bet ?? 0),
+    meetsTarget: (row.meets_target as boolean) ?? false,
+    contactInfo: (row.contact_info as string) ?? "",
+    note: (row.note as string) ?? "",
+    createdAt: (row.created_at as string) ?? "",
+    createdByName: (row.created_by_name as string) ?? undefined,
+  };
+}
+
+export function mapAccountVault(row: Record<string, unknown>): AccountVault {
+  return {
+    id: row.id as string,
+    platform: (row.platform as VaultPlatform) ?? "facebook",
+    label: (row.label as string) ?? "",
+    username: (row.username as string) ?? "",
+    password: (row.password as string) ?? "",
+    email: (row.email as string) ?? "",
+    twoFa: (row.two_fa as string) ?? "",
+    note: (row.note as string) ?? "",
+    createdAt: (row.created_at as string) ?? "",
+    createdByName: (row.created_by_name as string) ?? undefined,
+  };
+}
+
+export function mapStaffEvaluation(row: Record<string, unknown>): StaffEvaluation {
+  return {
+    id: row.id as string,
+    staffId: row.staff_id as string,
+    staffName: (row.staff_name as string) ?? "",
+    evaluatorName: (row.evaluator_name as string) ?? "",
+    rating: Number(row.rating ?? 0),
+    title: (row.title as string) ?? "",
+    comment: (row.comment as string) ?? "",
+    createdAt: (row.created_at as string) ?? "",
+  };
+}
+
+export function mapNotification(row: Record<string, unknown>): AppNotification {
+  return {
+    id: row.id as string,
+    type: (row.type as string) ?? "evaluation",
+    title: (row.title as string) ?? "",
+    content: (row.content as string) ?? "",
+    isRead: (row.is_read as boolean) ?? false,
+    createdAt: (row.created_at as string) ?? "",
   };
 }

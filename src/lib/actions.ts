@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import type { ChannelPlatform, ConversationStatus, PresenceStatus } from "@/types";
+import type { ChannelPlatform, ConversationStatus, PresenceStatus, VaultPlatform } from "@/types";
 
 async function requireUserId(): Promise<string> {
   const {
@@ -179,5 +179,188 @@ export async function sendTeamMessage(roomId: string, content: string): Promise<
   const { error } = await supabase
     .from("team_messages")
     .insert({ room_id: roomId, sender_id: userId, content, sent_at: new Date().toISOString() });
+  if (error) throw error;
+}
+
+export interface CustomerNoteInput {
+  isRegistered: boolean;
+  accountName: string;
+  contactInfo: string;
+  totalDeposit: number;
+  totalBet: number;
+  note: string;
+}
+
+export async function upsertCustomerNote(
+  customerId: string,
+  input: CustomerNoteInput
+): Promise<void> {
+  const userId = await requireUserId();
+  const now = new Date().toISOString();
+  const { error } = await supabase.from("customer_notes").upsert(
+    {
+      customer_id: customerId,
+      is_registered: input.isRegistered,
+      account_name: input.accountName,
+      contact_info: input.contactInfo,
+      total_deposit: input.totalDeposit,
+      total_bet: input.totalBet,
+      note: input.note,
+      updated_by: userId,
+      updated_at: now,
+    },
+    { onConflict: "customer_id" }
+  );
+  if (error) throw error;
+}
+
+export interface AccountVaultInput {
+  platform: VaultPlatform;
+  label: string;
+  username: string;
+  password: string;
+  email: string;
+  twoFa: string;
+  note: string;
+}
+
+export async function createAccountVault(input: AccountVaultInput): Promise<void> {
+  const userId = await requireUserId();
+  const { error } = await supabase.from("account_vault").insert({
+    platform: input.platform,
+    label: input.label,
+    username: input.username,
+    password: input.password,
+    email: input.email,
+    two_fa: input.twoFa,
+    note: input.note,
+    created_by: userId,
+  });
+  if (error) throw error;
+}
+
+export async function updateAccountVault(id: string, input: AccountVaultInput): Promise<void> {
+  const { error } = await supabase
+    .from("account_vault")
+    .update({
+      platform: input.platform,
+      label: input.label,
+      username: input.username,
+      password: input.password,
+      email: input.email,
+      two_fa: input.twoFa,
+      note: input.note,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteAccountVault(id: string): Promise<void> {
+  const { error } = await supabase.from("account_vault").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export interface EvaluationInput {
+  staffId: string;
+  staffName: string;
+  rating: number;
+  title: string;
+  comment: string;
+}
+
+export async function createEvaluation(input: EvaluationInput): Promise<void> {
+  const userId = await requireUserId();
+  const now = new Date().toISOString();
+  const { error: evalError } = await supabase.from("staff_evaluations").insert({
+    staff_id: input.staffId,
+    evaluator_id: userId,
+    rating: input.rating,
+    title: input.title,
+    comment: input.comment,
+    created_at: now,
+  });
+  if (evalError) throw evalError;
+
+  const { error: ntfError } = await supabase.from("notifications").insert({
+    user_id: input.staffId,
+    type: "evaluation",
+    title: "Bạn vừa nhận một đánh giá mới",
+    content: `Điểm ${input.rating}/5 — ${input.title || "Không tiêu đề"}`,
+    created_at: now,
+  });
+  if (ntfError) throw ntfError;
+}
+
+export async function deleteEvaluation(id: string): Promise<void> {
+  const { error } = await supabase.from("staff_evaluations").delete().eq("id", id);
+  if (error) throw error;
+}
+
+export async function markNotificationRead(id: string): Promise<void> {
+  const { error } = await supabase
+    .from("notifications")
+    .update({ is_read: true })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  const userId = await requireUserId();
+  const { error } = await supabase
+    .from("notifications")
+    .update({ is_read: true })
+    .eq("user_id", userId)
+    .eq("is_read", false);
+  if (error) throw error;
+}
+
+export interface CustomerAccountInput {
+  customerName: string;
+  registrationDate?: string;
+  lastDepositDate?: string;
+  totalDeposit: number;
+  totalBet: number;
+  meetsTarget: boolean;
+  contactInfo: string;
+  note: string;
+}
+
+export async function createCustomerAccount(input: CustomerAccountInput): Promise<void> {
+  const userId = await requireUserId();
+  const { error } = await supabase.from("customer_accounts").insert({
+    customer_name: input.customerName,
+    registration_date: input.registrationDate || null,
+    last_deposit_date: input.lastDepositDate || null,
+    total_deposit: input.totalDeposit,
+    total_bet: input.totalBet,
+    meets_target: input.meetsTarget,
+    contact_info: input.contactInfo,
+    note: input.note,
+    created_by: userId,
+  });
+  if (error) throw error;
+}
+
+export async function updateCustomerAccount(id: string, input: CustomerAccountInput): Promise<void> {
+  const { error } = await supabase
+    .from("customer_accounts")
+    .update({
+      customer_name: input.customerName,
+      registration_date: input.registrationDate || null,
+      last_deposit_date: input.lastDepositDate || null,
+      total_deposit: input.totalDeposit,
+      total_bet: input.totalBet,
+      meets_target: input.meetsTarget,
+      contact_info: input.contactInfo,
+      note: input.note,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteCustomerAccount(id: string): Promise<void> {
+  const { error } = await supabase.from("customer_accounts").delete().eq("id", id);
   if (error) throw error;
 }

@@ -11,6 +11,9 @@
 - `/` — Tổng quan (dashboard, admin)
 - `/inbox` — Hộp thư chung (3 cột: kênh / danh sách hội thoại / chi tiết trò chuyện)
 - `/customers` — Quản lý khách hàng
+- `/customer-notes` — Ghi chú khách hàng (khách đăng ký, tên tài khoản, liên hệ, tổng nạp, tổng cược)
+- `/accounts` — Kho tài khoản (FB/TikTok/Telegram: tài khoản, mật khẩu, Gmail, mã 2FA)
+- `/evaluations` — Đánh giá nhân viên (admin chấm điểm, tổ viên nhận thông báo)
 - `/staff` — Quản lý nhân viên (chỉ admin)
 - `/channels` — Kết nối kênh (chỉ admin)
 - `/reports` — Báo cáo hiệu suất (chỉ admin)
@@ -31,6 +34,9 @@
 - [x] Phòng trò chuyện nội bộ (team chat) — tạo phòng, thêm thành viên, gửi icon, realtime
 - [x] Báo cáo (tổng quan, xếp hạng nhân viên, xuất CSV)
 - [x] Nhật ký hoạt động (chỉ admin xem)
+- [x] Ghi chú khách hàng (khách đăng ký, tên tài khoản, liên hệ, tổng nạp, tổng cược) — tổ viên thêm/sửa, admin quản lý tất cả
+- [x] Kho tài khoản (FB/TikTok/Telegram: tài khoản, mật khẩu, Gmail, mã 2FA) — admin và tổ viên xem được
+- [x] Đánh giá nhân viên (admin chấm điểm 1-5 sao + nhận xét, gửi thông báo realtime về tổ viên, tổng hợp theo nhân viên)
 - [ ] Thông báo âm thanh / browser notification (đang có UI, chưa nối hành vi thật)
 
 ## 4. Mô hình dữ liệu (Supabase / Readdy Backend)
@@ -48,6 +54,10 @@
 - `response_time_events` — sự kiện thời gian phản hồi
 - `activity_logs` — nhật ký hoạt động (ai, làm gì, thời gian, IP, thiết bị)
 - `attachments` — tệp đính kèm
+- `customer_notes` — ghi chú khách hàng (khách đăng ký, tên tài khoản, liên hệ, tổng nạp, tổng cược, ghi chú)
+- `account_vault` — kho tài khoản (nền tảng, nhãn, tên đăng nhập, mật khẩu, Gmail, mã 2FA, ghi chú)
+- `staff_evaluations` — đánh giá nhân viên (nhân viên, người đánh giá, điểm 1-5, tiêu đề, nhận xét)
+- `notifications` — thông báo nội bộ (người nhận, loại, tiêu đề, nội dung, trạng thái đã đọc)
 - Quan hệ chính theo `user_id`, `channel_id`, `customer_id`, `conversation_id`.
 
 ## 5. Tích hợp Backend / bên thứ ba

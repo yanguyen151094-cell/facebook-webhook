@@ -1,6 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
 
-const GRAPH = "https://graph.facebook.com/v20.0";
+const GRAPH = "https://graph.facebook.com/v22.0";
 const HARDCODED_VERIFY_TOKEN = "T01D2026";
 
 module.exports = async (req, res) => {

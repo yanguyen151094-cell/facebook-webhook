@@ -11,6 +11,9 @@ import Reports from "@/pages/reports/page";
 import Logs from "@/pages/logs/page";
 import Settings from "@/pages/settings/page";
 import Team from "@/pages/team/page";
+import CustomerNotes from "@/pages/customer-notes/page";
+import Accounts from "@/pages/accounts/page";
+import Evaluations from "@/pages/evaluations/page";
 
 const routes: RouteObject[] = [
   {
@@ -30,6 +33,9 @@ const routes: RouteObject[] = [
       { path: "reports", element: <Reports /> },
       { path: "logs", element: <Logs /> },
       { path: "settings", element: <Settings /> },
+      { path: "customer-notes", element: <CustomerNotes /> },
+      { path: "accounts", element: <Accounts /> },
+      { path: "evaluations", element: <Evaluations /> },
     ],
   },
   {

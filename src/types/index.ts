@@ -124,3 +124,65 @@ export interface TeamMessage {
   content: string;
   sentAt: string;
 }
+
+export type VaultPlatform = "facebook" | "tiktok" | "telegram";
+
+export interface CustomerNote {
+  id: string;
+  customerId: string;
+  isRegistered: boolean;
+  accountName: string;
+  contactInfo: string;
+  totalDeposit: number;
+  totalBet: number;
+  note: string;
+  updatedAt: string;
+  updatedByName?: string;
+}
+
+export interface AccountVault {
+  id: string;
+  platform: VaultPlatform;
+  label: string;
+  username: string;
+  password: string;
+  email: string;
+  twoFa: string;
+  note: string;
+  createdAt: string;
+  createdByName?: string;
+}
+
+export interface StaffEvaluation {
+  id: string;
+  staffId: string;
+  staffName: string;
+  evaluatorName: string;
+  rating: number;
+  title: string;
+  comment: string;
+  createdAt: string;
+}
+
+export interface AppNotification {
+  id: string;
+  type: string;
+  title: string;
+  content: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface CustomerAccount {
+  id: string;
+  customerName: string;
+  registrationDate?: string;
+  lastDepositDate?: string;
+  totalDeposit: number;
+  totalBet: number;
+  meetsTarget: boolean;
+  contactInfo: string;
+  note: string;
+  createdAt: string;
+  createdByName?: string;
+}

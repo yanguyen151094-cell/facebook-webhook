@@ -1,4 +1,4 @@
-const GRAPH = "https://graph.facebook.com/v20.0";
+const GRAPH = "https://graph.facebook.com/v22.0";
 const HARDCODED_VERIFY_TOKEN = "T01D2026";
 
 async function verifySignature(
@@ -25,7 +25,7 @@ async function verifySignature(
 Deno.serve(async (req) => {
   const url = new URL(req.url);
 
-  // ===== FAST PATH: Facebook webhook verification (GET) — phản hồi ngay lập tức =====
+  // ===== FAST PATH: Facebook webhook verification (GET) =====
   if (req.method === "GET") {
     const mode = url.searchParams.get("hub.mode");
     const token = url.searchParams.get("hub.verify_token");
@@ -114,7 +114,7 @@ Deno.serve(async (req) => {
               .maybeSingle();
             if (cred?.token) {
               const profRes = await fetch(
-                `${GRAPH}/${senderId}?fields=name&access_token=${cred.token}`
+                `${GRAPH}/${senderId}?fields=name&access_token=${encodeURIComponent(cred.token)}`
               );
               const prof = await profRes.json();
               if (prof?.name) customerName = prof.name;
